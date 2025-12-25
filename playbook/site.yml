@@ -1,0 +1,107 @@
+---
+- name: Install Clickhouse
+  hosts: clickhouse
+  handlers:
+    - name: Start clickhouse service
+      become: true
+      ansible.builtin.service:
+        name: clickhouse-server
+        state: started
+        enabled: true
+  tasks:
+    - name: Create user clickhouse
+      become: true
+      ansible.builtin.user:
+        name: clickhouse
+    - name: Create the directory for clickhouse
+      become: true    
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: clickhouse
+        group: clickhouse
+        mode: "0755"
+      with_items:
+        - "/var/lib/clickhouse"
+        - "/var/log/clickhouse-server"
+    - name: Get clickhouse distrib
+      ansible.builtin.get_url:
+        url: "https://packages.clickhouse.com/deb/pool/main/c/clickhouse/{{ item }}_{{ clickhouse_version }}_amd64.deb"
+        dest: "/tmp/{{ item }}-{{ clickhouse_version }}-amd64.deb"
+        mode: "0755"
+      with_items: "{{ clickhouse_packages }}"
+    - name: Install clickhouse packages
+      become: true
+      ansible.builtin.apt:
+        deb: "{{ item }}"
+      with_items:
+        - "/tmp/clickhouse-common-static-{{ clickhouse_version }}-amd64.deb"
+        - "/tmp/clickhouse-client-{{ clickhouse_version }}-amd64.deb"
+        - "/tmp/clickhouse-server-{{ clickhouse_version }}-amd64.deb"
+      notify: Start clickhouse service
+    - name: Flush handlers
+      ansible.builtin.meta: flush_handlers
+    - name: Create database
+      ansible.builtin.command: "clickhouse-client -q 'create database logs;'"
+      register: create_db
+      failed_when: create_db.rc != 0 and create_db.rc != 82
+      changed_when: create_db.rc == 0
+
+- name: Install nginx
+  hosts: lighthouse
+  handlers:
+    - name: Reload-nginx
+      become: true
+      ansible.builtin.command: nginx -s reload
+      changed_when: false
+  tasks:
+    - name: Install nginx package
+      become: true
+      ansible.builtin.apt:
+        name: nginx
+        update_cache: true
+    - name: Create nginx config
+      become: true
+      ansible.builtin.template:
+        src: templates/nginx.conf.j2
+        dest: /etc/nginx/nginx.conf
+        mode: "0644"
+      notify: Reload-nginx
+
+- name: Install lighthouse
+  hosts: lighthouse
+  handlers:
+    - name: Reload-nginx
+      become: true
+      ansible.builtin.command: nginx -s reload
+      changed_when: false
+  pre_tasks:
+    - name: Install git package
+      become: true
+      ansible.builtin.apt:
+        name: git
+        update_cache: true
+  tasks:
+    - name: Create /opt/lighthouse directory
+      become: true
+      ansible.builtin.file:
+        state: directory
+        path: "/opt/lighthouse"
+        mode: "0777"
+
+    - name: git config
+      ansible.builtin.command: "git config --global --add safe.directory /opt/lighthouse"
+      changed_when: false
+
+    - name: Copy from git
+      ansible.builtin.git:
+        repo: "https://github.com/VKCOM/lighthouse.git"
+        version: master
+        dest: /opt/lighthouse
+    - name: Create lighthouse config
+      become: true
+      ansible.builtin.template:
+        src: templates/lighthouse.conf.j2
+        dest: /etc/nginx/conf.d/default.conf
+        mode: "0644"
+      notify: Reload-nginx

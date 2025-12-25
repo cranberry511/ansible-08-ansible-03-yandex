@@ -1,0 +1,6 @@
+---
+clickhouse_version: "25.9.7.56"
+clickhouse_packages:
+  - clickhouse-client
+  - clickhouse-server
+  - clickhouse-common-static

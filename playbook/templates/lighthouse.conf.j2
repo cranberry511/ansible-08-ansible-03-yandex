@@ -1,0 +1,9 @@
+server {
+    listen {{ lighthouse_port }};
+    root /opt/lighthouse;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+}

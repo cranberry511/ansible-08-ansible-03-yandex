@@ -9,7 +9,7 @@
 | `lighthouse_port` | порт для доступа к `Lighthouse` |
 
 
-1. Добавление ещё один play, который устанавливает и настраивает LightHouse.
+1. Добавление ещё одного play, который устанавливает и настраивает LightHouse.
 ![Развертывание LightHouse](img/add_lighthouse.jpg)
 
 2. Запуск `ansible-lint site.yml`.
